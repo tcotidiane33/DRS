@@ -1,4 +1,4 @@
-Bonne idée — voici l'architecture et le code complet pour intégrer ça dans Laravel.
+˚˚
 
 ## Architecture
 
