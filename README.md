@@ -1,5 +1,5 @@
 # DRS — Dynamic Resource Scheduler
-
+secret : d825a548-f24a-4071-b5a6-c6f12b33ec9e / Token ID : root@pam!drs
 Application Laravel pour déployer des VMs et conteneurs LXC sur un cluster Proxmox avec sélection automatique du nœud optimal.
 
 ## Architecture
