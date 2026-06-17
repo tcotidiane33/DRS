@@ -12,7 +12,7 @@ Laravel App
     ├── CreateProxmoxVm      ← job asynchrone de création
     └── Blade UI             ← formulaire de création + tableau de bord
 ```
-
+![alt text](image.png)
 ## Prérequis
 
 - PHP 8.2+
