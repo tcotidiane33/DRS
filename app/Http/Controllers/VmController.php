@@ -91,7 +91,7 @@ class VmController extends Controller
     public function index(): View
     {
         try {
-            $nodes = $this->selector->getNodesStatus();
+            $nodes = $this->selector->getNodesStatusWithStorage();
             $proxmoxError = null;
         } catch (RuntimeException $e) {
             $nodes = [];

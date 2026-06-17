@@ -71,6 +71,11 @@ class NodeSelectorService
             $memTotalGb = round(($node['maxmem'] ?? 0) / 1073741824, 1);
             $memPct = $memTotalGb > 0 ? round($memUsedGb / $memTotalGb * 100) : 0;
 
+            $runningVms = $node['running-vms'] ?? null;
+            if ($runningVms === null) {
+                $runningVms = ($node['running-qemu'] ?? 0) + ($node['running-lxc'] ?? 0);
+            }
+
             return [
                 'node'      => $node['node'],
                 'status'    => $node['status'] ?? 'unknown',
@@ -78,8 +83,25 @@ class NodeSelectorService
                 'mem_used'  => $memUsedGb,
                 'mem_total' => $memTotalGb,
                 'mem_pct'   => $memPct,
-                'vms'       => $node['running-vms'] ?? 0,
+                'vms'       => $runningVms,
             ];
+        }, $nodes);
+    }
+
+    public function getNodesStatusWithStorage(): array
+    {
+        $nodes = $this->getNodesStatus();
+
+        return array_map(function ($node) {
+            try {
+                $storages = $this->proxmox->getNodeStorage($node['node']);
+            } catch (RuntimeException $e) {
+                $storages = [];
+            }
+
+            $node['storages'] = $storages;
+
+            return $node;
         }, $nodes);
     }
 }

@@ -57,6 +57,39 @@
                          style="width: {{ $n['cpu_pct'] }}%"></div>
                 </div>
                 <div class="mt-2 text-xs text-gray-400">{{ $n['vms'] }} VMs actives</div>
+
+                @if(!empty($n['storages']))
+                    <div class="mt-4 space-y-3">
+                        <div class="text-sm font-semibold text-gray-700 mb-2">Stockages</div>
+                        @foreach($n['storages'] as $storage)
+                            @php
+                                $totalGb = isset($storage['total']) ? round($storage['total'] / 1073741824, 1) : null;
+                                $usedGb = isset($storage['used']) ? round($storage['used'] / 1073741824, 1) : null;
+                                $availGb = isset($storage['avail']) ? round($storage['avail'] / 1073741824, 1) : null;
+                                $usedPct = ($totalGb !== null && $usedGb !== null) ? round($usedGb / max($totalGb, 0.01) * 100) : null;
+                            @endphp
+                            <div class="p-3 bg-gray-50 rounded-lg border border-gray-100">
+                                <div class="flex items-center justify-between mb-1">
+                                    <span class="font-medium">{{ $storage['storage'] ?? 'Inconnu' }}</span>
+                                    <span class="text-xs text-gray-500">{{ strtoupper($storage['type'] ?? '---') }}</span>
+                                </div>
+                                @if($totalGb !== null && $usedGb !== null)
+                                    <div class="text-xs text-gray-500 mb-1">
+                                        {{ $usedGb }} / {{ $totalGb }} Go @if($usedPct !== null) ({{ $usedPct }}%)@endif
+                                    </div>
+                                    <div class="w-full bg-gray-200 rounded h-2 mb-2">
+                                        <div class="h-2 rounded bg-indigo-500" style="width: {{ $usedPct ?? 0 }}%"></div>
+                                    </div>
+                                @elseif($availGb !== null)
+                                    <div class="text-xs text-gray-500 mb-1">Disponible : {{ $availGb }} Go</div>
+                                @endif
+                                @if(isset($storage['content']))
+                                    <div class="text-xs text-gray-500">Contenu : {{ $storage['content'] }}</div>
+                                @endif
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
             </div>
         </div>
         @empty

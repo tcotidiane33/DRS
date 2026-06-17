@@ -12,7 +12,13 @@ Laravel App
     ├── CreateProxmoxVm      ← job asynchrone de création
     └── Blade UI             ← formulaire de création + tableau de bord
 ```
+Dashboard :
 ![alt text](image.png)
+add storage section :
+![alt text](image-1.png)
+create VMs/CTs
+![alt text](image-2.png)
+
 ## Prérequis
 
 - PHP 8.2+
