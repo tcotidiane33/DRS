@@ -114,7 +114,9 @@ class ProxmoxService
             return;
         }
 
-        $message = $response->json('errors') ?? $response->json('message') ?? $response->body();
+        $message = $response->json('errors')
+            ?? $response->json('message')
+            ?? ($response->body() ?: $response->reason());
 
         throw new RuntimeException(
             is_string($message) ? $message : json_encode($message)
