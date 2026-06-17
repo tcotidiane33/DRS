@@ -25,7 +25,7 @@ class ProxmoxService
         ]);
     }
 
-    public function get(string $path): array
+    public function get(string $path): array|string
     {
         $response = $this->client->get("{$this->baseUrl}{$path}");
         $this->ensureSuccess($response);

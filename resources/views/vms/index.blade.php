@@ -14,6 +14,17 @@
 
     <h1 class="text-2xl font-bold text-gray-800 mb-6">Tableau de bord Proxmox</h1>
 
+    @if(session('success'))
+        <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
+            {{ session('success') }}
+        </div>
+    @endif
+    @if(session('error'))
+        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+            {{ session('error') }}
+        </div>
+    @endif
+
     @if($proxmoxError ?? false)
         <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
             Connexion Proxmox impossible : {{ $proxmoxError }}
@@ -65,6 +76,7 @@
                     <th class="text-left px-4 py-3">VMID</th>
                     <th class="text-left px-4 py-3">Statut</th>
                     <th class="text-left px-4 py-3">Progression</th>
+                    <th class="text-left px-4 py-3">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -93,10 +105,23 @@
                         </div>
                         <p class="job-message text-xs text-gray-400 mt-1">{{ $job->message }}</p>
                     </td>
+                    <td class="px-4 py-3">
+                        @if($job->status === 'error')
+                            <div class="flex flex-col gap-2">
+                                <form action="{{ route('vms.retry', $job) }}" method="POST">
+                                    @csrf
+                                    <button type="submit" class="text-blue-600 hover:underline text-xs">Relancer</button>
+                                </form>
+                                <a href="{{ route('vms.edit', $job) }}" class="text-green-600 hover:underline text-xs">Modifier</a>
+                            </div>
+                        @else
+                            —
+                        @endif
+                    </td>
                 </tr>
                 @empty
                 <tr>
-                    <td colspan="7" class="px-4 py-8 text-center text-gray-400">Aucun job pour le moment.</td>
+                    <td colspan="8" class="px-4 py-8 text-center text-gray-400">Aucun job pour le moment.</td>
                 </tr>
                 @endforelse
             </tbody>

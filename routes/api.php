@@ -12,6 +12,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/nodes', [VmController::class, 'apiNodes']);
     Route::get('/best-node', [VmController::class, 'apiBestNode']);
     Route::get('/templates', [VmController::class, 'apiTemplates']);
+    Route::get('/storages', [VmController::class, 'apiStorages']);
     Route::get('/jobs', [VmController::class, 'jobs']);
     Route::post('/vms', [VmController::class, 'store']);
     Route::get('/jobs/{id}', [VmController::class, 'jobStatus']);

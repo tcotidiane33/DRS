@@ -13,7 +13,7 @@
 <div class="max-w-4xl mx-auto p-8">
 
     <h1 class="text-2xl font-bold text-gray-800 mb-6">
-        Nouvelle VM / Conteneur — Placement automatique
+        {{ isset($job) ? 'Modifier le job #' . $job->id : 'Nouvelle VM / Conteneur — Placement automatique' }}
     </h1>
 
     @if($proxmoxError ?? false)
@@ -58,6 +58,25 @@
             {{ session('success') }}
         </div>
     @endif
+    @if(session('error'))
+        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+            {{ session('error') }}
+        </div>
+    @endif
+
+    @php
+        $params = $job->params ?? [];
+        $currentType = old('type', $params['type'] ?? 'vm');
+        $currentMethod = old('method', $params['method'] ?? 'memory');
+        $currentStorage = old('storage', $params['storage'] ?? 'local-zfs');
+        $currentTemplate = old('template', $params['template'] ?? '');
+        $currentOstemplate = old('ostemplate', $params['ostemplate'] ?? '');
+        $currentName = old('name', $params['name'] ?? '');
+        $currentMemory = old('memory', $params['memory'] ?? 2048);
+        $currentCores = old('cores', $params['cores'] ?? 2);
+        $currentDiskSize = old('disk_size', $params['disk_size'] ?? 20);
+        $currentBridge = old('bridge', $params['bridge'] ?? 'vmbr0');
+    @endphp
 
     <div id="job-tracker" class="hidden bg-white rounded-xl shadow p-4 mb-6">
         <h3 class="font-semibold text-gray-700 mb-2">Suivi du déploiement</h3>
@@ -67,23 +86,26 @@
         <p id="job-message" class="text-sm text-gray-600"></p>
     </div>
 
-    <form action="{{ route('vms.store') }}" method="POST" class="bg-white rounded-xl shadow p-6 space-y-5">
+    <form action="{{ isset($job) ? route('vms.update', $job) : route('vms.store') }}" method="POST" class="bg-white rounded-xl shadow p-6 space-y-5">
         @csrf
+        @if(isset($job))
+            @method('PUT')
+        @endif
 
         <div class="flex flex-wrap gap-6">
             <label class="flex items-center gap-2 cursor-pointer">
-                <input type="radio" name="type" value="vm" checked onchange="toggleType(this.value)">
+                <input type="radio" name="type" value="vm" onchange="toggleType(this.value)" @checked($currentType === 'vm')>
                 <span class="font-medium">VM (QEMU)</span>
             </label>
             <label class="flex items-center gap-2 cursor-pointer">
-                <input type="radio" name="type" value="ct" onchange="toggleType(this.value)">
+                <input type="radio" name="type" value="ct" onchange="toggleType(this.value)" @checked($currentType === 'ct')>
                 <span class="font-medium">Conteneur (LXC)</span>
             </label>
         </div>
 
         <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Nom</label>
-            <input type="text" name="name" value="{{ old('name') }}"
+            <input type="text" name="name" value="{{ $currentName }}"
                    placeholder="ex: web-server-01"
                    class="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
                    required>
@@ -94,20 +116,20 @@
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">RAM (Mo)</label>
                 <select name="memory" class="w-full border rounded-lg px-3 py-2">
-                    <option value="512">512 Mo</option>
-                    <option value="1024">1 Go</option>
-                    <option value="2048" selected>2 Go</option>
-                    <option value="4096">4 Go</option>
-                    <option value="8192">8 Go</option>
-                    <option value="16384">16 Go</option>
-                    <option value="32768">32 Go</option>
+                    <option value="512" @selected($currentMemory == 512)>512 Mo</option>
+                    <option value="1024" @selected($currentMemory == 1024)>1 Go</option>
+                    <option value="2048" @selected($currentMemory == 2048)>2 Go</option>
+                    <option value="4096" @selected($currentMemory == 4096)>4 Go</option>
+                    <option value="8192" @selected($currentMemory == 8192)>8 Go</option>
+                    <option value="16384" @selected($currentMemory == 16384)>16 Go</option>
+                    <option value="32768" @selected($currentMemory == 32768)>32 Go</option>
                 </select>
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">vCPU</label>
                 <select name="cores" class="w-full border rounded-lg px-3 py-2">
                     @foreach([1,2,4,8,16] as $c)
-                        <option value="{{ $c }}" {{ $c == 2 ? 'selected' : '' }}>
+                        <option value="{{ $c }}" @selected($currentCores == $c)>
                             {{ $c }} cœur{{ $c > 1 ? 's' : '' }}
                         </option>
                     @endforeach
@@ -118,19 +140,21 @@
         <div class="grid grid-cols-2 gap-4">
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Disque (Go)</label>
-                <input type="number" name="disk_size" value="20" min="1" max="2000"
+                <input type="number" name="disk_size" value="{{ $currentDiskSize }}" min="1" max="2000"
                        class="w-full border rounded-lg px-3 py-2">
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Stockage</label>
-                <input type="text" name="storage" value="local-zfs"
-                       class="w-full border rounded-lg px-3 py-2">
+                <select id="storage-select" name="storage" data-default="{{ $currentStorage }}" class="w-full border rounded-lg px-3 py-2">
+                    <option value="">Chargement des stockages...</option>
+                </select>
+                @error('storage') <p class="text-red-500 text-xs mt-1">{{ $message }}</p> @enderror
             </div>
         </div>
 
         <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Bridge réseau</label>
-            <input type="text" name="bridge" value="vmbr0"
+            <input type="text" name="bridge" value="{{ $currentBridge }}"
                    class="w-full border rounded-lg px-3 py-2">
         </div>
 
@@ -152,15 +176,15 @@
             <label class="block text-sm font-medium text-gray-700 mb-2">Méthode de sélection du nœud</label>
             <div class="flex flex-wrap gap-4">
                 <label class="flex items-center gap-2">
-                    <input type="radio" name="method" value="memory" checked>
+                    <input type="radio" name="method" value="memory" @checked($currentMethod === 'memory')>
                     <span class="text-sm">RAM libre</span>
                 </label>
                 <label class="flex items-center gap-2">
-                    <input type="radio" name="method" value="cpu">
+                    <input type="radio" name="method" value="cpu" @checked($currentMethod === 'cpu')>
                     <span class="text-sm">CPU libre</span>
                 </label>
                 <label class="flex items-center gap-2">
-                    <input type="radio" name="method" value="score">
+                    <input type="radio" name="method" value="score" @checked($currentMethod === 'score')>
                     <span class="text-sm">Score combiné (RAM 60% + CPU 40%)</span>
                 </label>
             </div>
@@ -190,22 +214,29 @@ document.querySelectorAll('input[name="method"]').forEach(radio => {
     radio.addEventListener('change', fetchBestNode);
 });
 
+const oldStorage = @json($currentStorage);
+const oldTemplate = @json($currentTemplate);
+const oldOstemplate = @json($currentOstemplate);
+const currentType = @json($currentType);
+
 async function fetchBestNode() {
     try {
         const method = document.querySelector('input[name="method"]:checked').value;
-        const res = await fetch(`/api/best-node?method=${method}`);
+        const res = await fetch(`/vms/best-node?method=${method}`);
         const data = await res.json();
         const el = document.getElementById('preview-node');
         el.classList.remove('hidden');
         el.textContent = `Nœud sélectionné automatiquement : ${data.node} (méthode : ${data.method})`;
-        loadTemplates(document.querySelector('input[name="type"]:checked').value, data.node);
+        toggleType(currentType);
+        loadTemplates(currentType, data.node);
+        loadStorages(data.node);
     } catch (e) {
         console.error(e);
     }
 }
 
 async function loadTemplates(type, node = null) {
-    const url = `/api/templates?type=${type}${node ? `&node=${node}` : ''}`;
+    const url = `/vms/templates?type=${type}${node ? `&node=${node}` : ''}`;
     try {
         const res = await fetch(url);
         const data = await res.json();
@@ -220,6 +251,42 @@ async function loadTemplates(type, node = null) {
         });
     } catch (e) {
         console.error(e);
+    }
+}
+
+async function loadStorages(node = null) {
+    const select = document.getElementById('storage-select');
+    select.innerHTML = '<option value="">Chargement des stockages...</option>';
+
+    try {
+        const url = node ? `/vms/storages?node=${encodeURIComponent(node)}` : '/vms/storages';
+        const res = await fetch(url);
+        const data = await res.json();
+
+        if (! Array.isArray(data.storages)) {
+            select.innerHTML = '<option value="">Impossible de charger les stockages</option>';
+            return;
+        }
+
+        select.innerHTML = '<option value="">— Choisir un stockage —</option>';
+
+        data.storages.forEach(storage => {
+            const option = document.createElement('option');
+            option.value = storage.storage || '';
+            option.textContent = storage.storage || 'inconnu';
+            select.append(option);
+        });
+
+        if (oldStorage) {
+            select.value = oldStorage;
+        }
+
+        if (!select.value && select.options.length > 1) {
+            select.selectedIndex = 1;
+        }
+    } catch (e) {
+        console.error(e);
+        select.innerHTML = '<option value="">Erreur de chargement des stockages</option>';
     }
 }
 

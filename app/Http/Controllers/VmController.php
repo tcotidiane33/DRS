@@ -57,6 +57,7 @@ class VmController extends Controller
             'storage'   => $validated['storage'],
             'bridge'    => $validated['bridge'],
             'type'      => $validated['type'],
+            'method'    => $validated['method'],
             'template'  => $validated['template'] ?? $validated['ostemplate'] ?? null,
             'ostemplate'=> $validated['ostemplate'] ?? null,
         ];
@@ -148,6 +149,23 @@ class VmController extends Controller
         }
     }
 
+    public function apiStorages(Request $request): JsonResponse
+    {
+        try {
+            $node = $request->query('node');
+
+            if (! $node) {
+                $node = $this->selector->bestByMemory();
+            }
+
+            $storages = $this->proxmox->getNodeStorage($node);
+
+            return response()->json(['node' => $node, 'storages' => $storages]);
+        } catch (RuntimeException $e) {
+            return response()->json(['error' => $e->getMessage()], 503);
+        }
+    }
+
     public function jobs(Request $request): JsonResponse
     {
         $query = VmJob::query()->latest();
@@ -157,6 +175,90 @@ class VmController extends Controller
         }
 
         return response()->json($query->limit(50)->get());
+    }
+
+    public function retry(VmJob $job): RedirectResponse
+    {
+        if ($job->status !== 'error') {
+            return back()->with('error', 'Seuls les jobs en erreur peuvent être relancés.');
+        }
+
+        $method = $job->params['method'] ?? 'memory';
+
+        $job->update([
+            'status'   => 'queued',
+            'progress' => 0,
+            'message'  => 'Relance du job en cours...',
+        ]);
+
+        CreateProxmoxVm::dispatch($job->id, $job->params, $method);
+
+        return back()->with('success', "Job #{$job->id} relancé.");
+    }
+
+    public function edit(VmJob $job): View
+    {
+        if ($job->status !== 'error') {
+            return redirect()->route('vms.index')->with('error', 'Seuls les jobs en erreur peuvent être modifiés et relancés.');
+        }
+
+        try {
+            $nodes = $this->selector->getNodesStatus();
+            $nextId = $this->proxmox->getNextVmid();
+            $proxmoxError = null;
+        } catch (RuntimeException $e) {
+            $nodes = [];
+            $nextId = null;
+            $proxmoxError = $e->getMessage();
+        }
+
+        return view('vms.create', compact('nodes', 'nextId', 'proxmoxError', 'job'));
+    }
+
+    public function update(Request $request, VmJob $job): RedirectResponse
+    {
+        if ($job->status !== 'error') {
+            return back()->with('error', 'Seuls les jobs en erreur peuvent être modifiés et relancés.');
+        }
+
+        $validated = $request->validate([
+            'name'       => 'required|string|max:64|regex:/^[a-zA-Z0-9\-]+$/',
+            'memory'     => 'required|integer|min:256|max:131072',
+            'cores'      => 'required|integer|min:1|max:64',
+            'disk_size'  => 'required|integer|min:1|max:2000',
+            'storage'    => 'required|string',
+            'bridge'     => 'required|string',
+            'method'     => 'required|in:memory,cpu,score',
+            'type'       => 'required|in:vm,ct',
+            'ostemplate' => 'required_if:type,ct|nullable|string',
+            'template'   => 'nullable|string',
+        ]);
+
+        $params = [
+            'name'      => $validated['name'],
+            'memory'    => $validated['memory'],
+            'cores'     => $validated['cores'],
+            'disk_size' => $validated['disk_size'],
+            'storage'   => $validated['storage'],
+            'bridge'    => $validated['bridge'],
+            'type'      => $validated['type'],
+            'method'    => $validated['method'],
+            'template'  => $validated['template'] ?? $validated['ostemplate'] ?? null,
+            'ostemplate'=> $validated['ostemplate'] ?? null,
+        ];
+
+        $job->update([
+            'name'     => $validated['name'],
+            'type'     => $validated['type'],
+            'params'   => $params,
+            'status'   => 'queued',
+            'progress' => 0,
+            'message'  => 'Job relancé après mise à jour de la configuration.',
+        ]);
+
+        CreateProxmoxVm::dispatch($job->id, $params, $validated['method']);
+
+        return redirect()->route('vms.index')->with('success', "Job #{$job->id} relancé avec la configuration mise à jour.");
     }
 
     public function jobStatus(int $id): JsonResponse
