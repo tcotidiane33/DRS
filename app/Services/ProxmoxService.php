@@ -108,6 +108,32 @@ class ProxmoxService
         return $templates;
     }
 
+    public function getIsos(string $node): array
+    {
+        $storage = $this->getNodeStorage($node);
+        $isos = [];
+
+        foreach ($storage as $store) {
+            $content = explode(',', $store['content'] ?? '');
+
+            if (! in_array('iso', $content, true)) {
+                continue;
+            }
+
+            $vols = $this->get("/nodes/{$node}/storage/{$store['storage']}/content?content=iso");
+
+            foreach ($vols as $vol) {
+                $isos[] = [
+                    'volid' => $vol['volid'] ?? '',
+                    'name'  => basename($vol['volid'] ?? ''),
+                    'size'  => $vol['size'] ?? 0,
+                ];
+            }
+        }
+
+        return $isos;
+    }
+
     private function ensureSuccess(Response $response): void
     {
         if ($response->successful()) {

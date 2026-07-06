@@ -1,6 +1,46 @@
-# DRS — Dynamic Resource Scheduler
+# DRS — Dynamic Resource Scheduler & Site-to-Site Replication
 secret : *****-&&&&-@@@@@-&&&&&&-$$$$$$$ / Token ID : xxxx@####!drs
 Application Laravel pour déployer des VMs et conteneurs LXC sur un cluster Proxmox avec sélection automatique du nœud optimal.
+
+## Site-to-Site Ceph Replication (RBD Mirroring)
+
+This repository also contains administration scripts for managing site-to-site replication using Ceph RBD Mirroring in a Proxmox VE environment.
+
+### Features
+
+- **Automated Setup:** Handles user creation, keyring transfers, and configuring the `rbd-mirror` daemon.
+- **Failover & Recovery:** Provides tools to promote/demote images during disaster recovery or planned maintenance.
+
+### Scripts
+
+#### 1. setup_rbd_mirror.sh
+
+Sets up mirroring from a source site (Site A) to a target site (Site B).
+
+**Usage:**
+```bash
+./setup_rbd_mirror.sh --site-a-node <IP_OR_HOST_A> --site-b-node <IP_OR_HOST_B> --pool <POOL_NAME>
+```
+
+**Optional Arguments:**
+- `--mode <snapshot|journal>`: Choose mirror mode (default: `snapshot`). Note: `journal` is NOT supported for KRBD images or LXC containers.
+- `--image <IMAGE_NAME>`: Specifically enable mirror on a single image.
+- `--schedule <INTERVAL>`: E.g., `5m` or `1h` (only applicable in `snapshot` mode).
+
+---
+
+#### 2. failover_recovery.sh
+
+Used for planned failovers or disaster recovery when switching active sites.
+
+**Planned Switch (Site A to Site B):**
+1. Demote on Site A: `./failover_recovery.sh --node <SITE_A> --action demote --pool <POOL_NAME>`
+2. Promote on Site B: `./failover_recovery.sh --node <SITE_B> --action promote --pool <POOL_NAME>`
+
+**Disaster Recovery (Site A goes down):**
+1. Force Promote on Site B: `./failover_recovery.sh --node <SITE_B> --action promote --pool <POOL_NAME> --force`
+
+**Important:** Make sure to sync your VM/LXC configuration files (from `/etc/pve/qemu-server` and `/etc/pve/lxc`) to the recovery site independently, e.g., using `rsync`.
 
 ## Architecture
 
@@ -14,10 +54,12 @@ Laravel App
 ```
 Dashboard :
 ![alt text](image.png)
-add storage section :
+Add storage section :
 ![alt text](image-1.png)
-create VMs/CTs
+Create VMs/CTs
 ![alt text](image-2.png)
+Ceph Mirroring RBD 
+![alt text](image-3.png)
 
 ## Prérequis
 

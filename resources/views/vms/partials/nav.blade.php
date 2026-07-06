@@ -4,6 +4,7 @@
         <div class="flex gap-4 text-sm">
             <a href="{{ route('vms.index') }}" class="text-gray-600 hover:text-blue-600">Tableau de bord</a>
             <a href="{{ route('vms.create') }}" class="text-gray-600 hover:text-blue-600">Créer une VM/CT</a>
+            <a href="{{ route('mirroring.index') }}" class="text-gray-600 hover:text-blue-600">Ceph Mirroring</a>
         </div>
     </div>
 </nav>

@@ -47,6 +47,7 @@ class VmController extends Controller
             'type'       => 'required|in:vm,ct',
             'ostemplate' => 'required_if:type,ct|nullable|string',
             'template'   => 'nullable|string',
+            'iso'        => 'nullable|string',
         ]);
 
         $params = [
@@ -60,6 +61,7 @@ class VmController extends Controller
             'method'    => $validated['method'],
             'template'  => $validated['template'] ?? $validated['ostemplate'] ?? null,
             'ostemplate'=> $validated['ostemplate'] ?? null,
+            'iso'       => $validated['iso'] ?? null,
         ];
 
         $job = VmJob::create([
@@ -149,6 +151,23 @@ class VmController extends Controller
         }
     }
 
+    public function apiIsos(Request $request): JsonResponse
+    {
+        try {
+            $node = $request->query('node');
+
+            if (! $node) {
+                $node = $this->selector->bestByMemory();
+            }
+
+            $isos = $this->proxmox->getIsos($node);
+
+            return response()->json(['node' => $node, 'isos' => $isos]);
+        } catch (RuntimeException $e) {
+            return response()->json(['error' => $e->getMessage()], 503);
+        }
+    }
+
     public function apiStorages(Request $request): JsonResponse
     {
         try {
@@ -232,6 +251,7 @@ class VmController extends Controller
             'type'       => 'required|in:vm,ct',
             'ostemplate' => 'required_if:type,ct|nullable|string',
             'template'   => 'nullable|string',
+            'iso'        => 'nullable|string',
         ]);
 
         $params = [
@@ -245,6 +265,7 @@ class VmController extends Controller
             'method'    => $validated['method'],
             'template'  => $validated['template'] ?? $validated['ostemplate'] ?? null,
             'ostemplate'=> $validated['ostemplate'] ?? null,
+            'iso'       => $validated['iso'] ?? null,
         ];
 
         $job->update([

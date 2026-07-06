@@ -58,6 +58,10 @@ class CreateProxmoxVm implements ShouldQueue
                 if (! empty($this->params['template'])) {
                     $vmParams['clone'] = $this->params['template'];
                 }
+                
+                if (! empty($this->params['iso'])) {
+                    $vmParams['ide2'] = "{$this->params['iso']},media=cdrom";
+                }
 
                 $proxmox->createVm($node, $vmParams);
             } else {

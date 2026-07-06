@@ -76,6 +76,7 @@
         $currentCores = old('cores', $params['cores'] ?? 2);
         $currentDiskSize = old('disk_size', $params['disk_size'] ?? 20);
         $currentBridge = old('bridge', $params['bridge'] ?? 'vmbr0');
+        $currentIso = old('iso', $params['iso'] ?? '');
     @endphp
 
     <div id="job-tracker" class="hidden bg-white rounded-xl shadow p-4 mb-6">
@@ -158,11 +159,20 @@
                    class="w-full border rounded-lg px-3 py-2">
         </div>
 
-        <div id="vm-template" class="hidden">
-            <label class="block text-sm font-medium text-gray-700 mb-1">Template VM (clone)</label>
-            <select name="template" id="template-select-vm" class="w-full border rounded-lg px-3 py-2">
-                <option value="">— Aucun (disque vierge) —</option>
-            </select>
+        <div id="vm-template" class="hidden grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Template VM (clone)</label>
+                <select name="template" id="template-select-vm" class="w-full border rounded-lg px-3 py-2">
+                    <option value="">— Aucun (disque vierge) —</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Installation par ISO</label>
+                <select name="iso" id="iso-select-vm" class="w-full border rounded-lg px-3 py-2">
+                    <option value="">— Aucun —</option>
+                </select>
+                <p class="text-xs text-gray-500 mt-1">Sera ignoré si un Template (clone) est choisi.</p>
+            </div>
         </div>
 
         <div id="ct-template" class="hidden">
@@ -217,6 +227,7 @@ document.querySelectorAll('input[name="method"]').forEach(radio => {
 const oldStorage = @json($currentStorage);
 const oldTemplate = @json($currentTemplate);
 const oldOstemplate = @json($currentOstemplate);
+const oldIso = @json($currentIso);
 const currentType = @json($currentType);
 
 async function fetchBestNode() {
@@ -229,6 +240,7 @@ async function fetchBestNode() {
         el.textContent = `Nœud sélectionné automatiquement : ${data.node} (méthode : ${data.method})`;
         toggleType(currentType);
         loadTemplates(currentType, data.node);
+        loadIsos(data.node);
         loadStorages(data.node);
     } catch (e) {
         console.error(e);
@@ -287,6 +299,24 @@ async function loadStorages(node = null) {
     } catch (e) {
         console.error(e);
         select.innerHTML = '<option value="">Erreur de chargement des stockages</option>';
+    }
+}
+
+async function loadIsos(node = null) {
+    if (!node) return;
+    const url = `/api/isos?node=${encodeURIComponent(node)}`;
+    const select = document.getElementById('iso-select-vm');
+    try {
+        const res = await fetch(url);
+        const data = await res.json();
+        select.innerHTML = '<option value="">— Aucun —</option>';
+        (data.isos || []).forEach(i => {
+            select.innerHTML += `<option value="${i.volid}">${i.name} (${(i.size / 1024 / 1024 / 1024).toFixed(2)} Go)</option>`;
+        });
+        if (oldIso) select.value = oldIso;
+    } catch (e) {
+        console.error(e);
+        select.innerHTML = '<option value="">Erreur chargement ISOs</option>';
     }
 }
 
