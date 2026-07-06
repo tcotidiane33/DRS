@@ -8,6 +8,9 @@ Route::prefix('mirroring')->name('mirroring.')->group(function () {
     Route::get('/', [CephMirroringController::class, 'index'])->name('index');
     Route::post('/setup', [CephMirroringController::class, 'setup'])->name('setup');
     Route::post('/failover', [CephMirroringController::class, 'failover'])->name('failover');
+    Route::get('/logs', [CephMirroringController::class, 'listLogs'])->name('logs');
+    Route::get('/logs/{logId}', [CephMirroringController::class, 'getLog'])->name('logs.show');
+    Route::get('/logs/{logId}/stream', [CephMirroringController::class, 'streamLog'])->name('logs.stream');
 });
 
 

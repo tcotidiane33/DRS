@@ -55,6 +55,6 @@ else
 fi
 
 echo "[INFO] Running command on $NODE: $CMD"
-ssh root@"$NODE" "$CMD"
+ssh -o StrictHostKeyChecking=accept-new root@"$NODE" "$CMD"
 
 echo "[SUCCESS] Action completed."
