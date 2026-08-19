@@ -56,7 +56,7 @@ class CephMirrorStepController extends Controller
         ]);
 
         $cmd = [
-            'ssh', '-o', 'StrictHostKeyChecking=accept-new', '-o', 'ConnectTimeout=10',
+            'ssh', '-o', 'StrictHostKeyChecking=accept-new', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10',
             "root@{$data['site_a']}",
             "ceph auth get-or-create client.rbd-mirror-peer-a mon 'profile rbd' osd 'profile rbd' -o /etc/pve/priv/site-b.client.rbd-mirror-peer-a.keyring",
         ];
@@ -87,7 +87,7 @@ class CephMirrorStepController extends Controller
         ]);
 
         $cmd = [
-            'ssh', '-o', 'StrictHostKeyChecking=accept-new', '-o', 'ConnectTimeout=10',
+            'ssh', '-o', 'StrictHostKeyChecking=accept-new', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10',
             "root@{$siteA}", $remoteCmd,
         ];
 
@@ -110,7 +110,7 @@ class CephMirrorStepController extends Controller
         ]);
 
         $cmd = [
-            'ssh', '-o', 'StrictHostKeyChecking=accept-new', '-o', 'ConnectTimeout=10',
+            'ssh', '-o', 'StrictHostKeyChecking=accept-new', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10',
             "root@{$data['site_b']}", $remoteCmd,
         ];
 
@@ -133,8 +133,8 @@ class CephMirrorStepController extends Controller
 
         // Two SSH commands; chain them in a shell -c wrapper
         $compound = implode(' && ', [
-            "ssh -o StrictHostKeyChecking=accept-new root@{$data['site_a']} 'rbd mirror pool enable {$data['pool']} image'",
-            "ssh -o StrictHostKeyChecking=accept-new root@{$data['site_b']} 'rbd mirror pool enable {$data['pool']} image'",
+            "ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=10 root@{$data['site_a']} 'rbd mirror pool enable {$data['pool']} image'",
+            "ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=10 root@{$data['site_b']} 'rbd mirror pool enable {$data['pool']} image'",
         ]);
 
         $cmd = ['bash', '-c', $compound];
@@ -156,7 +156,7 @@ class CephMirrorStepController extends Controller
         ]);
 
         $cmd = [
-            'ssh', '-o', 'StrictHostKeyChecking=accept-new', '-o', 'ConnectTimeout=10',
+            'ssh', '-o', 'StrictHostKeyChecking=accept-new', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10',
             "root@{$data['site_b']}",
             "rbd mirror pool peer add {$data['pool']} client.rbd-mirror-peer-a@site-a",
         ];
@@ -185,7 +185,7 @@ class CephMirrorStepController extends Controller
         ]);
 
         $cmd = [
-            'ssh', '-o', 'StrictHostKeyChecking=accept-new', '-o', 'ConnectTimeout=10',
+            'ssh', '-o', 'StrictHostKeyChecking=accept-new', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10',
             "root@{$data['site_b']}", $remoteCmd,
         ];
 
@@ -217,7 +217,7 @@ class CephMirrorStepController extends Controller
         }
 
         $cmd = [
-            'ssh', '-o', 'StrictHostKeyChecking=accept-new', '-o', 'ConnectTimeout=10',
+            'ssh', '-o', 'StrictHostKeyChecking=accept-new', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10',
             "root@{$data['site_a']}", implode(' && ', $commands),
         ];
 
@@ -249,7 +249,7 @@ class CephMirrorStepController extends Controller
 
         $force = ! empty($data['force']) ? '--force' : '';
         $cmd = [
-            'ssh', '-o', 'StrictHostKeyChecking=accept-new', '-o', 'ConnectTimeout=10',
+            'ssh', '-o', 'StrictHostKeyChecking=accept-new', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10',
             "root@{$data['node']}", "rbd mirror {$target} demote {$force}",
         ];
 
@@ -277,7 +277,7 @@ class CephMirrorStepController extends Controller
 
         $force = ! empty($data['force']) ? '--force' : '';
         $cmd = [
-            'ssh', '-o', 'StrictHostKeyChecking=accept-new', '-o', 'ConnectTimeout=10',
+            'ssh', '-o', 'StrictHostKeyChecking=accept-new', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10',
             "root@{$data['node']}", "rbd mirror {$target} promote {$force}",
         ];
 
@@ -301,7 +301,7 @@ class CephMirrorStepController extends Controller
         ]);
 
         $process = new Process([
-            'ssh', '-o', 'StrictHostKeyChecking=accept-new', '-o', 'ConnectTimeout=10',
+            'ssh', '-o', 'StrictHostKeyChecking=accept-new', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10',
             "root@{$data['node']}",
             "rbd mirror pool status {$data['pool']} --verbose --format json",
         ]);

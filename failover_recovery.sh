@@ -54,7 +54,9 @@ else
     CMD="$CMD pool $ACTION $POOL $FORCE"
 fi
 
+SSH_OPTS="-o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=10"
+
 echo "[INFO] Running command on $NODE: $CMD"
-ssh -o StrictHostKeyChecking=accept-new root@"$NODE" "$CMD"
+ssh $SSH_OPTS root@"$NODE" "$CMD"
 
 echo "[SUCCESS] Action completed."

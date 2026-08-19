@@ -7,6 +7,9 @@
 #
 set -euo pipefail
 
+SSH_OPTS="-o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=10"
+SCP_OPTS="-o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=10"
+
 function usage() {
     echo "Usage: $0 [OPTIONS]"
     echo ""
@@ -52,16 +55,16 @@ echo "[INFO] Starting Ceph RBD Mirroring Setup (Site A -> Site B)..."
 
 # 1. Create users on Site A
 echo "[INFO] Creating user on Site A ($SITE_A)..."
-ssh -o StrictHostKeyChecking=accept-new root@"$SITE_A" "ceph auth get-or-create client.rbd-mirror-peer-a mon 'profile rbd' osd 'profile rbd' -o /etc/pve/priv/site-b.client.rbd-mirror-peer-a.keyring"
+ssh $SSH_OPTS root@"$SITE_A" "ceph auth get-or-create client.rbd-mirror-peer-a mon 'profile rbd' osd 'profile rbd' -o /etc/pve/priv/site-b.client.rbd-mirror-peer-a.keyring"
 
 # 2. Transfer Site A keyring and config to Site B
 echo "[INFO] Transferring Site A keyring and ceph config to Site B ($SITE_B)..."
-ssh -o StrictHostKeyChecking=accept-new root@"$SITE_A" "scp -o StrictHostKeyChecking=accept-new /etc/pve/priv/site-b.client.rbd-mirror-peer-a.keyring root@${SITE_B}:/etc/pve/priv/site-a.client.rbd-mirror-peer-a.keyring"
-ssh -o StrictHostKeyChecking=accept-new root@"$SITE_A" "scp -o StrictHostKeyChecking=accept-new /etc/pve/ceph.conf root@${SITE_B}:/etc/pve/site-a.conf"
+ssh $SSH_OPTS root@"$SITE_A" "scp $SCP_OPTS /etc/pve/priv/site-b.client.rbd-mirror-peer-a.keyring root@${SITE_B}:/etc/pve/priv/site-a.client.rbd-mirror-peer-a.keyring"
+ssh $SSH_OPTS root@"$SITE_A" "scp $SCP_OPTS /etc/pve/ceph.conf root@${SITE_B}:/etc/pve/site-a.conf"
 
 # 3. Setup Site B user and symlink config
 echo "[INFO] Setting up user and config on Site B ($SITE_B)..."
-ssh -o StrictHostKeyChecking=accept-new root@"$SITE_B" << 'EOF'
+ssh $SSH_OPTS root@"$SITE_B" << 'EOF'
     # Create symlink for site-a config
     ln -sf /etc/pve/site-a.conf /etc/ceph/site-a.conf
     # Create local user for rbd-mirror daemon
@@ -70,16 +73,16 @@ EOF
 
 # 4. Enable mirroring on pools on both sites
 echo "[INFO] Enabling mirroring on pool '$POOL' on both sites..."
-ssh -o StrictHostKeyChecking=accept-new root@"$SITE_A" "rbd mirror pool enable $POOL image"
-ssh -o StrictHostKeyChecking=accept-new root@"$SITE_B" "rbd mirror pool enable $POOL image"
+ssh $SSH_OPTS root@"$SITE_A" "rbd mirror pool enable $POOL image"
+ssh $SSH_OPTS root@"$SITE_B" "rbd mirror pool enable $POOL image"
 
 # 5. Configure Peers on Site B
 echo "[INFO] Configuring peer on Site B connecting to Site A..."
-ssh -o StrictHostKeyChecking=accept-new root@"$SITE_B" "rbd mirror pool peer add $POOL client.rbd-mirror-peer-a@site-a"
+ssh $SSH_OPTS root@"$SITE_B" "rbd mirror pool peer add $POOL client.rbd-mirror-peer-a@site-a"
 
 # 6. Setup the rbd-mirror daemon on Site B
 echo "[INFO] Setting up rbd-mirror daemon on Site B..."
-ssh -o StrictHostKeyChecking=accept-new root@"$SITE_B" << 'EOF'
+ssh $SSH_OPTS root@"$SITE_B" << 'EOF'
     apt-get update && apt-get install -y rbd-mirror
     systemctl enable ceph-rbd-mirror.target
     cp /usr/lib/systemd/system/ceph-rbd-mirror@.service /etc/systemd/system/ceph-rbd-mirror@.service
@@ -91,11 +94,11 @@ EOF
 # 7. Configure image mirroring (if specified)
 if [[ -n "$IMAGE" ]]; then
     echo "[INFO] Enabling mirror for image '$POOL/$IMAGE' in $MODE mode on Site A..."
-    ssh -o StrictHostKeyChecking=accept-new root@"$SITE_A" "rbd mirror image enable $POOL/$IMAGE $MODE"
+    ssh $SSH_OPTS root@"$SITE_A" "rbd mirror image enable $POOL/$IMAGE $MODE"
 
     if [[ "$MODE" == "snapshot" && -n "$SCHEDULE" ]]; then
         echo "[INFO] Adding snapshot schedule '$SCHEDULE' for pool '$POOL' on Site A..."
-        ssh -o StrictHostKeyChecking=accept-new root@"$SITE_A" "rbd mirror snapshot schedule add --pool $POOL $SCHEDULE"
+        ssh $SSH_OPTS root@"$SITE_A" "rbd mirror snapshot schedule add --pool $POOL $SCHEDULE"
     fi
 fi
 
