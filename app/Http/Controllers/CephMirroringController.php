@@ -208,35 +208,28 @@ class CephMirroringController extends Controller
         file_put_contents($logFile, "[DRS] Commande : " . implode(' ', $cmd) . "\n", FILE_APPEND);
         file_put_contents($logFile, str_repeat('─', 60) . "\n", FILE_APPEND);
 
-        $process = new Process($cmd);
-        $process->setTimeout(300);
+        // Build a shell command that:
+        //  1. Runs the script, appending stdout+stderr to the log file
+        //  2. Captures the exit code
+        //  3. Writes the exit code to the .done file
+        // All in the background with nohup so it doesn't block PHP
+        $escapedCmd = implode(' ', array_map('escapeshellarg', $cmd));
+        $escapedLog = escapeshellarg($logFile);
+        $escapedDone = escapeshellarg($doneFile);
 
-        // Run non-blocking and stream output line by line
-        $process->start(function (string $type, string $buffer) use ($logFile) {
-            file_put_contents($logFile, $buffer, FILE_APPEND);
-        });
+        $shellCmd = sprintf(
+            'nohup bash -c %s > /dev/null 2>&1 &',
+            escapeshellarg(
+                "{$escapedCmd} >> {$escapedLog} 2>&1; EXIT_CODE=\$?; "
+                . "echo '' >> {$escapedLog}; "
+                . "echo '────────────────────────────────────────────────────────────' >> {$escapedLog}; "
+                . "echo \"[DRS] Terminé avec le code : \$EXIT_CODE\" >> {$escapedLog}; "
+                . "echo \$EXIT_CODE > {$escapedDone}"
+            )
+        );
 
-        // Detach — let the process keep running; the event loop below writes the .done file
-        register_shutdown_function(function () use ($process, $logFile, $doneFile) {
-            if ($process->isRunning()) {
-                $process->wait(function (string $type, string $buffer) use ($logFile) {
-                    file_put_contents($logFile, $buffer, FILE_APPEND);
-                });
-            }
-            $exitCode = $process->getExitCode() ?? 1;
-            file_put_contents($logFile, "\n" . str_repeat('─', 60) . "\n", FILE_APPEND);
-            file_put_contents($logFile, "[DRS] Terminé avec le code : {$exitCode}\n", FILE_APPEND);
-            file_put_contents($doneFile, (string) $exitCode);
-        });
-
-        $process->wait(function (string $type, string $buffer) use ($logFile) {
-            file_put_contents($logFile, $buffer, FILE_APPEND);
-        });
-
-        $exitCode = $process->getExitCode() ?? 1;
-        file_put_contents($logFile, "\n" . str_repeat('─', 60) . "\n", FILE_APPEND);
-        file_put_contents($logFile, "[DRS] Terminé avec le code : {$exitCode}\n", FILE_APPEND);
-        file_put_contents($doneFile, (string) $exitCode);
+        // Launch and return immediately — does NOT block
+        exec($shellCmd);
     }
 
     private function getRecentLogs(): array

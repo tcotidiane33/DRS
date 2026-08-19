@@ -425,7 +425,8 @@
 
 <script>
 const CSRF = document.querySelector('meta[name="csrf-token"]').content;
-let activeSSE = null;
+let activeSSE = null; // now used as the polling interval ID
+let lastLogOffset = 0;
 
 // ══ TAB SWITCHING ─────────────────────────────────────────────
 const tabs = ['allinone','wizard','failover','api'];
@@ -459,7 +460,8 @@ function appendLine(line) {
 function clearConsole() {
     document.getElementById('log-console').innerHTML = '<p class="text-slate-600 italic text-xs">Console effacée.</p>';
     setStatus('idle');
-    if (activeSSE) { activeSSE.close(); activeSSE = null; }
+    if (activeSSE) { clearInterval(activeSSE); activeSSE = null; }
+    lastLogOffset = 0;
 }
 function setStatus(s) {
     const b = document.getElementById('log-status-badge');
@@ -468,21 +470,37 @@ function setStatus(s) {
     b.className = 'badge '+(m[s]||m.idle);
     b.textContent = l[s]||s;
 }
-function startSSE(logId) {
-    if (activeSSE) activeSSE.close();
+
+// ══ POLL LOG (replaces SSE) ──────────────────────────────────
+function startPolling(logId) {
+    if (activeSSE) clearInterval(activeSSE);
     setStatus('running');
-    const es = new EventSource('/mirroring/logs/'+logId+'/stream');
-    activeSSE = es;
-    es.onmessage = e => {
-        const d = JSON.parse(e.data);
-        if (d.line) appendLine(d.line);
-        if (d.done) {
-            es.close(); activeSSE = null;
-            setStatus(d.status === 'success' ? 'success' : 'error');
-            loadLogHistory();
+    lastLogOffset = 0;
+
+    activeSSE = setInterval(async () => {
+        try {
+            const res  = await fetch('/mirroring/logs/' + logId);
+            const data = await res.json();
+            if (data.error) return;
+
+            // Only append new content
+            const fullContent = data.content || '';
+            const newContent  = fullContent.substring(lastLogOffset);
+            if (newContent) {
+                newContent.split('\n').forEach(line => { if (line.trim()) appendLine(line); });
+                lastLogOffset = fullContent.length;
+            }
+
+            if (data.done) {
+                clearInterval(activeSSE);
+                activeSSE = null;
+                setStatus(data.status === 'success' ? 'success' : 'error');
+                loadLogHistory();
+            }
+        } catch (e) {
+            // silently retry
         }
-    };
-    es.onerror = () => { es.close(); setStatus('error'); appendLine('[DRS] Connexion SSE interrompue.'); };
+    }, 1500); // poll every 1.5 seconds
 }
 
 // ══ GENERIC POST ─────────────────────────────────────────────
@@ -497,7 +515,7 @@ async function postStep(endpoint, body) {
     const data = await res.json();
     if (data.log_id) {
         appendLine('[DRS] ' + (data.message || ''));
-        startSSE(data.log_id);
+        startPolling(data.log_id);
     } else {
         appendLine('[DRS] Erreur : ' + JSON.stringify(data));
         setStatus('error');
@@ -564,7 +582,7 @@ async function runStep(n) {
     });
     const data = await res.json();
     appendLine('[DRS] '+(data.message||''));
-    if (data.log_id) startSSE(data.log_id);
+    if (data.log_id) startPolling(data.log_id);
     setStepStatus(n, data.success ? 'success' : 'error');
 }
 
@@ -622,7 +640,7 @@ async function reloadLog(logId) {
     if (data.error) { appendLine('[DRS] ' + data.error); return; }
     data.content.split('\n').forEach(l => { if (l) appendLine(l); });
     setStatus(data.status === 'success' ? 'success' : data.status === 'running' ? 'running' : 'error');
-    if (data.status === 'running') startSSE(logId);
+    if (data.status === 'running') startPolling(logId);
 }
 
 // ══ RESTORE WIZARD STATE ─────────────────────────────────────
