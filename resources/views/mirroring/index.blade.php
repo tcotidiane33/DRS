@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>Ceph RBD Mirroring Administration</title>
+    <title>Ceph RBD Mirroring &amp; Clés SSH — DRS</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
     <style>
@@ -14,8 +14,8 @@
             -webkit-backdrop-filter: blur(12px);
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
-        .animate-fade-in { animation: fadeIn 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in { animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
         #log-console { font-family: 'Fira Code', 'JetBrains Mono', monospace; font-size: 0.78rem; line-height: 1.65; }
         .log-info    { color: #93c5fd; }
         .log-success { color: #6ee7b7; }
@@ -30,7 +30,9 @@
         .step-running  { border-color: #f59e0b; box-shadow: 0 0 0 1px #f59e0b44; }
         .step-success  { border-color: #10b981; box-shadow: 0 0 0 1px #10b98144; }
         .step-error    { border-color: #ef4444; box-shadow: 0 0 0 1px #ef444444; }
-        .badge { display:inline-flex; align-items:center; gap:3px; padding:2px 9px; border-radius:9999px; font-size:0.68rem; font-weight:600; }
+        .badge { display:inline-flex; align-items:center; gap:4px; padding:2px 10px; border-radius:9999px; font-size:0.72rem; font-weight:600; }
+        .node-card { transition: all 0.2s ease; }
+        .node-card:hover { border-color: #4f46e5; }
     </style>
 </head>
 <body class="bg-slate-900 text-slate-200 min-h-screen font-sans antialiased overflow-x-hidden relative">
@@ -42,21 +44,113 @@
 
     <header class="mb-8 text-center animate-fade-in">
         <h1 class="text-4xl md:text-5xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-400 mb-3">
-            Ceph RBD Mirroring
+            Ceph RBD Mirroring &amp; DRS
         </h1>
-        <p class="text-slate-400 max-w-2xl mx-auto">Administration de la réplication site-à-site Proxmox — All-in-one, Wizard step-by-step &amp; API REST.</p>
+        <p class="text-slate-400 max-w-2xl mx-auto">Administration de la réplication site-à-site Proxmox — Gestion des Clés SSH, All-in-one, Wizard &amp; API REST.</p>
     </header>
 
     <!-- ═══════════ TABS ═══════════ -->
-    <div class="flex gap-6 border-b border-slate-700/60 mb-8 px-1">
-        <button id="tab-allinone" onclick="switchTab('allinone')" class="tab-active pb-2 text-sm font-semibold transition-colors">🚀 All-in-one</button>
-        <button id="tab-wizard"   onclick="switchTab('wizard')"   class="tab-inactive pb-2 text-sm font-semibold transition-colors">🧙 Wizard Step-by-step</button>
-        <button id="tab-failover" onclick="switchTab('failover')" class="tab-inactive pb-2 text-sm font-semibold transition-colors">⚡ Failover</button>
-        <button id="tab-api"      onclick="switchTab('api')"      class="tab-inactive pb-2 text-sm font-semibold transition-colors">📡 Référence API</button>
+    <div class="flex gap-4 sm:gap-6 border-b border-slate-700/60 mb-8 px-1 overflow-x-auto">
+        <button id="tab-ssh"      onclick="switchTab('ssh')"      class="tab-active pb-2 text-sm font-semibold transition-colors flex items-center gap-2 shrink-0">🔑 Clés SSH &amp; Nœuds</button>
+        <button id="tab-allinone" onclick="switchTab('allinone')" class="tab-inactive pb-2 text-sm font-semibold transition-colors flex items-center gap-2 shrink-0">🚀 All-in-one</button>
+        <button id="tab-wizard"   onclick="switchTab('wizard')"   class="tab-inactive pb-2 text-sm font-semibold transition-colors flex items-center gap-2 shrink-0">🧙 Wizard Step-by-step</button>
+        <button id="tab-failover" onclick="switchTab('failover')" class="tab-inactive pb-2 text-sm font-semibold transition-colors flex items-center gap-2 shrink-0">⚡ Failover</button>
+        <button id="tab-api"      onclick="switchTab('api')"      class="tab-inactive pb-2 text-sm font-semibold transition-colors flex items-center gap-2 shrink-0">📡 Référence API</button>
+    </div>
+
+    <!-- ═══════════ TAB: SSH KEYS & NODE MATRIX (NEW) ═══════════ -->
+    <div id="panel-ssh" class="animate-fade-in space-y-8">
+        
+        <!-- Public Key Display Card -->
+        <section class="glass-panel rounded-2xl shadow-2xl p-6 sm:p-8">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 pb-4 border-b border-slate-700/50">
+                <div class="flex items-center gap-3">
+                    <div class="p-2.5 bg-amber-500/20 rounded-xl text-amber-400">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/></svg>
+                    </div>
+                    <div>
+                        <h2 class="text-xl font-bold text-white">Clé Publique SSH du Serveur DRS</h2>
+                        <p class="text-xs text-slate-400" id="ssh-key-path">Emplacement : ~/.ssh/id_ed25519.pub</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="copySshKey()" id="btn-copy-key" class="btn-secondary text-xs py-2 px-4 flex items-center gap-1.5 hover:border-indigo-500 hover:text-white">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
+                        <span>Copier la clé publique</span>
+                    </button>
+                    <button onclick="loadSshKey()" title="Recharger" class="p-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-400 hover:text-white rounded-lg transition-colors">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                    </button>
+                </div>
+            </div>
+
+            <p class="text-slate-400 text-sm mb-3">
+                Pour exécuter les scripts sans mot de passe, cette clé doit être autorisée sur chaque nœud Proxmox. Vous pouvez utiliser le bouton <strong class="text-indigo-400">« Autoriser en 1 clic »</strong> ci-dessous pour l'injecter automatiquement via le mot de passe root.
+            </p>
+
+            <div class="relative">
+                <textarea id="ssh-public-key-text" readonly rows="2" class="w-full bg-slate-950/80 border border-slate-700/80 text-emerald-400 font-mono text-xs rounded-xl p-3.5 select-all focus:outline-none focus:border-indigo-500 transition-colors">Chargement de la clé publique...</textarea>
+            </div>
+        </section>
+
+        <!-- Node Connectivity Matrix -->
+        <section class="glass-panel rounded-2xl shadow-2xl p-6 sm:p-8">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-4 border-b border-slate-700/50">
+                <div class="flex items-center gap-3">
+                    <div class="p-2.5 bg-indigo-500/20 rounded-xl text-indigo-400">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                    </div>
+                    <div>
+                        <h2 class="text-xl font-bold text-white">Matrice d'Autorisation &amp; Connectivité SSH</h2>
+                        <p class="text-xs text-slate-400">Vérifiez l'accès sans mot de passe et autorisez la clé en 1 clic sur chaque nœud Proxmox.</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <button onclick="testAllNodes()" id="btn-test-all" class="btn-primary py-2 px-4 text-xs font-semibold flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                        <span>Tester tous les nœuds</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Site A Nodes Section -->
+            <div class="mb-6">
+                <h3 class="text-sm font-bold text-indigo-300 uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-indigo-400"></span> Site A — Source Cluster
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4" id="site-a-nodes-grid">
+                    <!-- Cards will be populated by JS or static fallback -->
+                </div>
+            </div>
+
+            <!-- Site B Nodes Section -->
+            <div class="mb-6">
+                <h3 class="text-sm font-bold text-emerald-300 uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span> Site B — Target Cluster
+                </h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4" id="site-b-nodes-grid">
+                    <!-- Cards will be populated by JS -->
+                </div>
+            </div>
+
+            <!-- Custom IP Section -->
+            <div class="pt-4 border-t border-slate-700/50">
+                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Ajouter un autre nœud personnalisé</h3>
+                <div class="flex flex-col sm:flex-row gap-3">
+                    <input type="text" id="custom-node-ip" placeholder="ex: 192.168.10.50" class="field flex-1 text-sm" />
+                    <button onclick="addCustomNode()" class="btn-secondary text-xs px-5 py-2 whitespace-nowrap">
+                        + Ajouter à la liste
+                    </button>
+                </div>
+                <div id="custom-nodes-grid" class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-3"></div>
+            </div>
+        </section>
+
     </div>
 
     <!-- ═══════════ TAB: ALL-IN-ONE ═══════════ -->
-    <div id="panel-allinone" class="animate-fade-in">
+    <div id="panel-allinone" class="hidden animate-fade-in">
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
             <section class="glass-panel rounded-2xl shadow-2xl p-8">
                 <div class="flex items-center gap-3 mb-6 border-b border-slate-700/50 pb-4">
@@ -68,8 +162,8 @@
                 <form id="form-setup" class="space-y-4">
                     @csrf
                     <div class="grid grid-cols-2 gap-4">
-                        <div><label class="label">Site A Node</label><input type="text" name="site_a" required class="field" placeholder="54.38.146.218"></div>
-                        <div><label class="label">Site B Node</label><input type="text" name="site_b" required class="field" placeholder="54.38.146.211"></div>
+                        <div><label class="label">Site A Node</label><input type="text" name="site_a" id="aio-site-a" required class="field" placeholder="54.38.146.218"></div>
+                        <div><label class="label">Site B Node</label><input type="text" name="site_b" id="aio-site-b" required class="field" placeholder="54.38.146.211"></div>
                     </div>
                     <div><label class="label">Pool</label><input type="text" name="pool" required class="field" placeholder="cephrbd"></div>
                     <div class="grid grid-cols-2 gap-4">
@@ -295,22 +389,25 @@
     <!-- ═══════════ TAB: API REFERENCE ═══════════ -->
     <div id="panel-api" class="hidden animate-fade-in">
         <div class="glass-panel rounded-2xl shadow-2xl p-8 mb-8">
-            <h2 class="text-xl font-bold text-white mb-2">Référence API REST — Step-by-Step</h2>
-            <p class="text-slate-400 text-sm mb-6">Tous les endpoints acceptent et retournent du <code class="text-indigo-400">application/json</code>. Pas d'authentification requise dans cette configuration.</p>
+            <h2 class="text-xl font-bold text-white mb-2">Référence API REST — Step-by-Step &amp; SSH</h2>
+            <p class="text-slate-400 text-sm mb-6">Tous les endpoints acceptent et retournent du <code class="text-indigo-400">application/json</code>.</p>
 
             <div class="space-y-4">
                 @php
                 $endpoints = [
-                    ['POST', '/api/mirroring/steps/create-user',      'Step 1', 'site_a, pool',                    'Crée le user Ceph sur Site A'],
-                    ['POST', '/api/mirroring/steps/transfer-keyring', 'Step 2', 'site_a, site_b',                  'Transfère le keyring A→B'],
-                    ['POST', '/api/mirroring/steps/configure-site-b', 'Step 3', 'site_b',                          'Symlink config + user local Site B'],
-                    ['POST', '/api/mirroring/steps/enable-pool',      'Step 4', 'site_a, site_b, pool',            'Active le mirroring du pool'],
-                    ['POST', '/api/mirroring/steps/configure-peer',   'Step 5', 'site_b, pool',                    'Ajoute le peer Site A sur Site B'],
-                    ['POST', '/api/mirroring/steps/setup-daemon',     'Step 6', 'site_b',                          'Installe et démarre rbd-mirror'],
+                    ['GET',  '/api/ssh/public-key',                   'SSH',     'aucun',                             'Récupère la clé publique locale'],
+                    ['POST', '/api/ssh/test',                         'SSH',     'node',                              'Teste l\'accès sans mot de passe'],
+                    ['POST', '/api/ssh/authorize',                    'SSH',     'node, password',                    'Injecte la clé publique avec mot de passe'],
+                    ['POST', '/api/mirroring/steps/create-user',      'Step 1', 'site_a, pool',                      'Crée le user Ceph sur Site A'],
+                    ['POST', '/api/mirroring/steps/transfer-keyring', 'Step 2', 'site_a, site_b',                    'Transfère le keyring A→B'],
+                    ['POST', '/api/mirroring/steps/configure-site-b', 'Step 3', 'site_b',                            'Symlink config + user local Site B'],
+                    ['POST', '/api/mirroring/steps/enable-pool',      'Step 4', 'site_a, site_b, pool',              'Active le mirroring du pool'],
+                    ['POST', '/api/mirroring/steps/configure-peer',   'Step 5', 'site_b, pool',                      'Ajoute le peer Site A sur Site B'],
+                    ['POST', '/api/mirroring/steps/setup-daemon',     'Step 6', 'site_b',                            'Installe et démarre rbd-mirror'],
                     ['POST', '/api/mirroring/steps/enable-image',     'Step 7', 'site_a, pool, image, mode, schedule?', 'Active image + schedule'],
-                    ['POST', '/api/mirroring/steps/demote',           'Failover', 'node, pool, image?, force?',    'Demote pool/image'],
-                    ['POST', '/api/mirroring/steps/promote',          'Failover', 'node, pool, image?, force?',    'Promote pool/image'],
-                    ['GET',  '/api/mirroring/steps/status',           'Statut',  'node, pool (query params)',       'Statut du pool (JSON)'],
+                    ['POST', '/api/mirroring/steps/demote',           'Failover', 'node, pool, image?, force?',      'Demote pool/image'],
+                    ['POST', '/api/mirroring/steps/promote',          'Failover', 'node, pool, image?, force?',      'Promote pool/image'],
+                    ['GET',  '/api/mirroring/steps/status',           'Statut',  'node, pool (query params)',         'Statut du pool (JSON)'],
                 ];
                 @endphp
                 @foreach($endpoints as $ep)
@@ -327,40 +424,24 @@
             </div>
 
             <div class="mt-8">
-                <h3 class="text-base font-semibold text-white mb-3">Exemple curl — Step 1</h3>
-                <pre class="bg-slate-950/80 rounded-xl p-4 text-xs text-emerald-300 font-mono overflow-x-auto">curl -X POST http://localhost:8000/api/mirroring/steps/create-user \
+                <h3 class="text-base font-semibold text-white mb-3">Exemple curl — Tester l'accès SSH</h3>
+                <pre class="bg-slate-950/80 rounded-xl p-4 text-xs text-emerald-300 font-mono overflow-x-auto">curl -X POST http://localhost:8000/api/ssh/test \
   -H "Content-Type: application/json" \
   -H "X-CSRF-TOKEN: &lt;token&gt;" \
-  -d '{"site_a":"54.38.146.218","pool":"cephrbd"}'
+  -d '{"node":"54.38.146.218"}'
 
 # Réponse
 {
-  "log_id": "step1_create_user_20260706_121500_abc123",
-  "success": true,
-  "message": "Step 1 — Create Ceph user on Site A → Succès ✓",
-  "output": "[keyring content]",
-  "error": null
-}</pre>
-            </div>
-
-            <div class="mt-6">
-                <h3 class="text-base font-semibold text-white mb-3">Exemple curl — Statut du pool</h3>
-                <pre class="bg-slate-950/80 rounded-xl p-4 text-xs text-emerald-300 font-mono overflow-x-auto">curl "http://localhost:8000/api/mirroring/steps/status?node=54.38.146.211&pool=cephrbd"
-
-# Réponse
-{
-  "node": "54.38.146.211",
-  "pool": "cephrbd",
-  "summary": {"health": "OK", "daemon_health": "OK", "image_health": "OK"},
-  "images": [
-    { "name": "vm-disk-114-disk-1", "state": "up+replaying", ... }
-  ]
+  "node": "54.38.146.218",
+  "connected": true,
+  "status": "authorized",
+  "message": "Connecté sans mot de passe ✓"
 }</pre>
             </div>
         </div>
     </div>
 
-    <!-- ═══════════ LOG CONSOLE ═══════════ -->
+    <!-- ═══════════ LOG CONSOLE (Always Available) ═══════════ -->
     <section class="glass-panel rounded-2xl shadow-2xl mt-8">
         <div class="flex items-center justify-between px-6 py-4 border-b border-slate-700/50">
             <div class="flex items-center gap-3">
@@ -382,7 +463,7 @@
                 <span class="ml-3 text-xs text-slate-500 font-mono">DRS — Ceph Mirror Output</span>
             </div>
             <div id="log-console" class="h-80 overflow-y-auto px-5 py-4 space-y-0.5">
-                <p class="text-slate-600 italic text-xs">Lancez une commande pour voir les logs ici...</p>
+                <p class="text-slate-600 italic text-xs">Lancez une commande ou testez vos nœuds pour voir les logs ici...</p>
             </div>
         </div>
         <!-- History -->
@@ -415,26 +496,230 @@
 .label { display:block; font-size:0.8rem; font-weight:500; color:#94a3b8; margin-bottom:4px; }
 .field { width:100%; background:rgba(15,23,42,0.5); border:1px solid #334155; color:white; border-radius:8px; padding:8px 14px; font-size:0.875rem; outline:none; transition:border-color 0.15s; }
 .field:focus { border-color:#6366f1; box-shadow:0 0 0 2px rgba(99,102,241,0.2); }
-.btn-primary { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; background:linear-gradient(to right,#4f46e5,#6366f1); color:white; font-weight:600; padding:12px; border-radius:10px; transition:all 0.15s; }
+.btn-primary { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; background:linear-gradient(to right,#4f46e5,#6366f1); color:white; font-weight:600; padding:12px; border-radius:10px; transition:all 0.15s; cursor:pointer; }
 .btn-primary:hover { background:linear-gradient(to right,#4338ca,#4f46e5); transform:translateY(-1px); }
-.btn-secondary { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; background:#1e293b; border:1px solid #334155; color:#94a3b8; font-weight:500; padding:9px; border-radius:10px; transition:all 0.15s; font-size:0.875rem; }
+.btn-secondary { display:flex; align-items:center; justify-content:center; gap:8px; background:#1e293b; border:1px solid #334155; color:#94a3b8; font-weight:500; padding:9px; border-radius:10px; transition:all 0.15s; font-size:0.875rem; cursor:pointer; }
 .btn-secondary:hover { background:#334155; color:#e2e8f0; }
-.btn-step { font-size:0.8rem; font-weight:600; background:#1e293b; border:1px solid #334155; color:#94a3b8; padding:6px 14px; border-radius:8px; transition:all 0.15s; white-space:nowrap; }
+.btn-step { font-size:0.8rem; font-weight:600; background:#1e293b; border:1px solid #334155; color:#94a3b8; padding:6px 14px; border-radius:8px; transition:all 0.15s; white-space:nowrap; cursor:pointer; }
 .btn-step:hover { background:#334155; color:#e2e8f0; }
 </style>
 
 <script>
 const CSRF = document.querySelector('meta[name="csrf-token"]').content;
-let activeSSE = null; // now used as the polling interval ID
+let activePolling = null;
 let lastLogOffset = 0;
 
+// Default Proxmox Node Clusters
+const DEFAULT_NODES_A = ['54.38.146.218', '54.38.146.219', '54.38.146.220'];
+const DEFAULT_NODES_B = ['54.38.146.210', '54.38.146.211', '54.38.146.212'];
+let customNodes = JSON.parse(localStorage.getItem('drs_custom_nodes') || '[]');
+
 // ══ TAB SWITCHING ─────────────────────────────────────────────
-const tabs = ['allinone','wizard','failover','api'];
+const tabs = ['ssh', 'allinone', 'wizard', 'failover', 'api'];
 function switchTab(name) {
     tabs.forEach(t => {
-        document.getElementById('panel-'+t).classList.toggle('hidden', t !== name);
-        document.getElementById('tab-'+t).className = t === name ? 'tab-active pb-2 text-sm font-semibold transition-colors' : 'tab-inactive pb-2 text-sm font-semibold transition-colors';
+        const p = document.getElementById('panel-' + t);
+        const b = document.getElementById('tab-' + t);
+        if (p) p.classList.toggle('hidden', t !== name);
+        if (b) b.className = t === name 
+            ? 'tab-active pb-2 text-sm font-semibold transition-colors flex items-center gap-2 shrink-0' 
+            : 'tab-inactive pb-2 text-sm font-semibold transition-colors flex items-center gap-2 shrink-0';
     });
+}
+
+// ══ SSH KEY MANAGEMENT ────────────────────────────────────────
+async function loadSshKey() {
+    try {
+        const res = await fetch('/api/ssh/public-key');
+        const data = await res.json();
+        if (data.public_key) {
+            document.getElementById('ssh-public-key-text').value = data.public_key;
+            if (data.path) document.getElementById('ssh-key-path').textContent = `Emplacement : ${data.path}`;
+        }
+    } catch (e) {
+        document.getElementById('ssh-public-key-text').value = "Erreur lors du chargement de la clé publique.";
+    }
+}
+
+function copySshKey() {
+    const text = document.getElementById('ssh-public-key-text').value;
+    navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById('btn-copy-key');
+        const orig = btn.innerHTML;
+        btn.innerHTML = `<span class="text-emerald-400 font-bold">✓ Clé copiée !</span>`;
+        setTimeout(() => btn.innerHTML = orig, 2000);
+    });
+}
+
+// Render Node Cards
+function createNodeCardHtml(ip, group) {
+    const safeId = ip.replace(/\./g, '-');
+    return `
+    <div id="node-card-${safeId}" class="node-card bg-slate-800/40 border border-slate-700/60 rounded-xl p-4 flex flex-col justify-between gap-3">
+        <div>
+            <div class="flex items-center justify-between mb-1.5">
+                <span class="font-mono text-sm font-bold text-white">${ip}</span>
+                <span id="node-badge-${safeId}" class="badge bg-slate-700/60 text-slate-400">Non testé</span>
+            </div>
+            <p id="node-msg-${safeId}" class="text-xs text-slate-500 truncate">Cliquez sur Tester pour vérifier</p>
+        </div>
+
+        <div class="flex items-center gap-2 pt-2 border-t border-slate-700/40">
+            <button onclick="testSingleNode('${ip}')" id="btn-test-${safeId}" class="flex-1 btn-secondary text-xs py-1.5 px-2.5 flex items-center justify-center gap-1">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/></svg>
+                Tester
+            </button>
+            <button onclick="toggleAuthForm('${ip}')" id="btn-auth-${safeId}" class="flex-1 bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/40 text-indigo-200 text-xs font-semibold py-1.5 px-2.5 rounded-lg transition-colors flex items-center justify-center gap-1">
+                🔑 Autoriser
+            </button>
+        </div>
+
+        <!-- Inline Password Auth Form -->
+        <div id="node-auth-box-${safeId}" class="hidden pt-2 border-t border-indigo-500/30 bg-slate-900/60 p-2.5 rounded-lg mt-1 space-y-2">
+            <p class="text-[11px] text-indigo-300 font-medium">Mot de passe root pour ${ip} :</p>
+            <div class="flex gap-1.5">
+                <input type="password" id="node-pwd-${safeId}" placeholder="Mot de passe root" class="field text-xs py-1 px-2 flex-1" />
+                <button onclick="submitAuthorizeKey('${ip}')" id="btn-inject-${safeId}" class="btn-primary text-xs py-1 px-3 whitespace-nowrap">Injecter</button>
+            </div>
+            <div id="node-inject-feedback-${safeId}" class="text-[11px] hidden"></div>
+        </div>
+    </div>`;
+}
+
+function renderNodeMatrices() {
+    const gridA = document.getElementById('site-a-nodes-grid');
+    const gridB = document.getElementById('site-b-nodes-grid');
+    const gridC = document.getElementById('custom-nodes-grid');
+
+    if (gridA) gridA.innerHTML = DEFAULT_NODES_A.map(ip => createNodeCardHtml(ip, 'Site A')).join('');
+    if (gridB) gridB.innerHTML = DEFAULT_NODES_B.map(ip => createNodeCardHtml(ip, 'Site B')).join('');
+    if (gridC) gridC.innerHTML = customNodes.map(ip => createNodeCardHtml(ip, 'Custom')).join('');
+}
+
+function addCustomNode() {
+    const input = document.getElementById('custom-node-ip');
+    const ip = input.value.trim();
+    if (!ip) return;
+    if (!customNodes.includes(ip) && !DEFAULT_NODES_A.includes(ip) && !DEFAULT_NODES_B.includes(ip)) {
+        customNodes.push(ip);
+        localStorage.setItem('drs_custom_nodes', JSON.stringify(customNodes));
+        renderNodeMatrices();
+    }
+    input.value = '';
+}
+
+function toggleAuthForm(ip) {
+    const safeId = ip.replace(/\./g, '-');
+    const box = document.getElementById(`node-auth-box-${safeId}`);
+    if (box) box.classList.toggle('hidden');
+}
+
+function updateNodeCardState(ip, status, message) {
+    const safeId = ip.replace(/\./g, '-');
+    const badge = document.getElementById(`node-badge-${safeId}`);
+    const msgEl = document.getElementById(`node-msg-${safeId}`);
+    const card = document.getElementById(`node-card-${safeId}`);
+
+    if (!badge || !msgEl) return;
+
+    msgEl.textContent = message || '';
+
+    if (status === 'testing') {
+        badge.className = 'badge bg-amber-500/20 text-amber-300';
+        badge.innerHTML = '⟳ Test en cours...';
+    } else if (status === 'authorized') {
+        badge.className = 'badge bg-emerald-500/20 text-emerald-400';
+        badge.innerHTML = '✓ Autorisé (SSH OK)';
+        if (card) card.style.borderColor = '#10b981';
+    } else if (status === 'unauthorized') {
+        badge.className = 'badge bg-rose-500/20 text-rose-400';
+        badge.innerHTML = '✗ Clé non autorisée';
+        if (card) card.style.borderColor = '#ef4444';
+    } else if (status === 'unreachable') {
+        badge.className = 'badge bg-yellow-500/20 text-yellow-400';
+        badge.innerHTML = '⚠ Injoignable';
+        if (card) card.style.borderColor = '#f59e0b';
+    } else {
+        badge.className = 'badge bg-slate-700/60 text-slate-400';
+        badge.innerHTML = 'Non testé';
+    }
+}
+
+async function testSingleNode(ip) {
+    updateNodeCardState(ip, 'testing', 'Vérification de la clé...');
+    try {
+        const res = await fetch('/api/ssh/test', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+            body: JSON.stringify({ node: ip }),
+        });
+        const data = await res.json();
+        updateNodeCardState(ip, data.status, data.message);
+        appendLine(`[DRS] Test SSH vers ${ip} : ${data.message}`);
+    } catch (e) {
+        updateNodeCardState(ip, 'unreachable', 'Erreur réseau');
+    }
+}
+
+async function testAllNodes() {
+    const all = [...DEFAULT_NODES_A, ...DEFAULT_NODES_B, ...customNodes];
+    all.forEach(ip => updateNodeCardState(ip, 'testing', 'En attente...'));
+
+    for (const ip of all) {
+        await testSingleNode(ip);
+    }
+}
+
+async function submitAuthorizeKey(ip) {
+    const safeId = ip.replace(/\./g, '-');
+    const pwdInput = document.getElementById(`node-pwd-${safeId}`);
+    const feedback = document.getElementById(`node-inject-feedback-${safeId}`);
+    const btn = document.getElementById(`btn-inject-${safeId}`);
+    const password = pwdInput ? pwdInput.value : '';
+
+    if (!password) {
+        alert('Veuillez saisir le mot de passe root pour ' + ip);
+        return;
+    }
+
+    if (feedback) {
+        feedback.className = 'text-[11px] text-amber-300 block';
+        feedback.textContent = 'Injection de la clé en cours via expect...';
+    }
+    if (btn) btn.disabled = true;
+
+    try {
+        const res = await fetch('/api/ssh/authorize', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': CSRF, 'Accept': 'application/json' },
+            body: JSON.stringify({ node: ip, password }),
+        });
+        const data = await res.json();
+
+        if (res.ok && data.success) {
+            if (feedback) {
+                feedback.className = 'text-[11px] text-emerald-400 font-bold block';
+                feedback.textContent = '✓ Clé injectée avec succès !';
+            }
+            if (pwdInput) pwdInput.value = '';
+            setTimeout(() => toggleAuthForm(ip), 2000);
+            updateNodeCardState(ip, 'authorized', 'Connecté sans mot de passe ✓');
+            appendLine(`[DRS] [SUCCESS] Clé SSH injectée et vérifiée sur ${ip} ✓`);
+        } else {
+            if (feedback) {
+                feedback.className = 'text-[11px] text-rose-400 block';
+                feedback.textContent = '✗ ' + (data.message || 'Échec de l\'autorisation');
+            }
+            appendLine(`[DRS] [ERROR] Échec sur ${ip} : ${data.message || ''}`);
+        }
+    } catch (e) {
+        if (feedback) {
+            feedback.className = 'text-[11px] text-rose-400 block';
+            feedback.textContent = '✗ Erreur de communication avec le serveur';
+        }
+    } finally {
+        if (btn) btn.disabled = false;
+    }
 }
 
 // ══ LOG CONSOLE ──────────────────────────────────────────────
@@ -460,7 +745,7 @@ function appendLine(line) {
 function clearConsole() {
     document.getElementById('log-console').innerHTML = '<p class="text-slate-600 italic text-xs">Console effacée.</p>';
     setStatus('idle');
-    if (activeSSE) { clearInterval(activeSSE); activeSSE = null; }
+    if (activePolling) { clearInterval(activePolling); activePolling = null; }
     lastLogOffset = 0;
 }
 function setStatus(s) {
@@ -471,19 +756,18 @@ function setStatus(s) {
     b.textContent = l[s]||s;
 }
 
-// ══ POLL LOG (replaces SSE) ──────────────────────────────────
+// ══ POLL LOG ─────────────────────────────────────────────────
 function startPolling(logId) {
-    if (activeSSE) clearInterval(activeSSE);
+    if (activePolling) clearInterval(activePolling);
     setStatus('running');
     lastLogOffset = 0;
 
-    activeSSE = setInterval(async () => {
+    activePolling = setInterval(async () => {
         try {
             const res  = await fetch('/mirroring/logs/' + logId);
             const data = await res.json();
             if (data.error) return;
 
-            // Only append new content
             const fullContent = data.content || '';
             const newContent  = fullContent.substring(lastLogOffset);
             if (newContent) {
@@ -492,15 +776,13 @@ function startPolling(logId) {
             }
 
             if (data.done) {
-                clearInterval(activeSSE);
-                activeSSE = null;
+                clearInterval(activePolling);
+                activePolling = null;
                 setStatus(data.status === 'success' ? 'success' : 'error');
                 loadLogHistory();
             }
-        } catch (e) {
-            // silently retry
-        }
-    }, 1500); // poll every 1.5 seconds
+        } catch (e) {}
+    }, 1500);
 }
 
 // ══ GENERIC POST ─────────────────────────────────────────────
@@ -517,7 +799,7 @@ async function postStep(endpoint, body) {
         appendLine('[DRS] ' + (data.message || ''));
         startPolling(data.log_id);
     } else {
-        appendLine('[DRS] Erreur : ' + JSON.stringify(data));
+        appendLine('[DRS] ' + (data.message || JSON.stringify(data)));
         setStatus('error');
     }
     return data;
@@ -552,6 +834,7 @@ function getWzValues(keys) {
 function setStepStatus(n, state) {
     const el = document.getElementById('step-'+n);
     const badge = document.getElementById('step-'+n+'-badge');
+    if (!el || !badge) return;
     el.className = el.className.replace(/step-\w+/, 'step-'+state);
     const labels = { idle:'En attente', running:'⟳ En cours', success:'✓ Succès', error:'✗ Erreur' };
     const colors  = {
@@ -562,7 +845,6 @@ function setStepStatus(n, state) {
     };
     badge.className = 'badge '+(colors[state]||colors.idle);
     badge.textContent = labels[state]||state;
-    // Persist in localStorage
     const saved = JSON.parse(localStorage.getItem('drs_wizard_steps')||'{}');
     saved[n] = state;
     localStorage.setItem('drs_wizard_steps', JSON.stringify(saved));
@@ -572,7 +854,6 @@ async function runStep(n) {
     const cfg = stepConfig[n];
     const body = getWzValues(cfg.keys);
     setStepStatus(n, 'running');
-    switchTab('wizard');
     clearConsole();
     appendLine('[DRS] Step '+n+' → '+cfg.endpoint);
     const res  = await fetch(cfg.endpoint, {
@@ -643,11 +924,17 @@ async function reloadLog(logId) {
     if (data.status === 'running') startPolling(logId);
 }
 
-// ══ RESTORE WIZARD STATE ─────────────────────────────────────
-(function restoreWizardState() {
+// ══ INITIALIZATION ───────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+    loadSshKey();
+    renderNodeMatrices();
+    // Auto-test all known nodes on load
+    testAllNodes();
+
+    // Restore wizard state
     const saved = JSON.parse(localStorage.getItem('drs_wizard_steps')||'{}');
     Object.entries(saved).forEach(([n, state]) => { try { setStepStatus(n, state); } catch(e){} });
-})();
+});
 </script>
 
 </body>

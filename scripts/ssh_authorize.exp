@@ -1,0 +1,38 @@
+#!/usr/bin/expect -f
+
+set timeout 20
+set node [lindex $argv 0]
+set password [lindex $argv 1]
+set pubkey [lindex $argv 2]
+
+if {$node == "" || $password == "" || $pubkey == ""} {
+    puts stderr "Usage: ssh_authorize.exp <node> <password> <pubkey>"
+    exit 1
+}
+
+# Run SSH command with interactive password handling
+spawn ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 root@$node "mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo '$pubkey' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys && sort -u ~/.ssh/authorized_keys -o ~/.ssh/authorized_keys && echo 'DRS_KEY_INJECTED_SUCCESS'"
+
+expect {
+    -re "(?i)are you sure you want to continue connecting" {
+        send "yes\r"
+        exp_continue
+    }
+    -re "(?i)password:" {
+        send "$password\r"
+        exp_continue
+    }
+    -re "(?i)permission denied" {
+        puts stderr "ERREUR_AUTH: Mot de passe incorrect ou acces refuse"
+        exit 3
+    }
+    timeout {
+        puts stderr "ERREUR_TIMEOUT: Le serveur n'a pas repondu a temps"
+        exit 4
+    }
+    eof
+}
+
+catch wait result
+set exitCode [lindex $result 3]
+exit $exitCode

@@ -3,6 +3,7 @@
 use App\Http\Controllers\VmController;
 use App\Http\Controllers\CephMirroringController;
 use App\Http\Controllers\CephMirrorStepController;
+use App\Http\Controllers\SshKeyController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('mirroring')->name('mirroring.')->group(function () {
@@ -54,6 +55,14 @@ Route::prefix('api')->name('api.')->group(function () {
         Route::post('/promote',          [CephMirrorStepController::class, 'promote'])->name('promote');
         // Status
         Route::get('/status',            [CephMirrorStepController::class, 'poolStatus'])->name('status');
+    });
+
+    // ── SSH Key & Node Connectivity API ─────────────────────────────────
+    Route::prefix('ssh')->name('ssh.')->group(function () {
+        Route::get('/public-key', [SshKeyController::class, 'getPublicKey'])->name('public-key');
+        Route::post('/test',       [SshKeyController::class, 'testConnection'])->name('test');
+        Route::post('/test-all',   [SshKeyController::class, 'testAll'])->name('test-all');
+        Route::post('/authorize',  [SshKeyController::class, 'authorize'])->name('authorize');
     });
 });
 
